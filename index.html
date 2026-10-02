@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>囲碁 棋譜SGF解析・検討アプリ</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="囲碁棋譜">
+    <meta name="theme-color" content="#0d0e12">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for Japanese Wafuu style -->
+    <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Zen Kaku Gothic New', sans-serif;
+            background-color: #0d0e12;
+            color: #f1f5f9;
+        }
+
+        .font-serif-jp {
+            font-family: 'Shippori Mincho', serif;
+        }
+
+        /* Go Board Wood Texture Styling */
+        .go-board-wood {
+            background: #d8a054;
+            background-image: 
+                radial-gradient(ellipse at center, rgba(255,255,255,0.18) 0%, rgba(0,0,0,0.2) 100%),
+                repeating-linear-gradient(0deg, transparent, transparent 4px, rgba(110, 65, 15, 0.06) 4px, rgba(110, 65, 15, 0.06) 8px);
+            box-shadow: 0 12px 35px -5px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(90, 50, 10, 0.5);
+        }
+
+        /* Stone Styles */
+        .black-stone {
+            background: radial-gradient(circle at 35% 35%, #4a4a4a, #111111 60%, #000000 100%);
+            box-shadow: 2px 3px 6px rgba(0,0,0,0.65), inset -1px -1px 2px rgba(255,255,255,0.15);
+            border-radius: 50%;
+        }
+
+        .white-stone {
+            background: radial-gradient(circle at 35% 35%, #ffffff, #f1f5f9 60%, #cbd5e1 100%);
+            box-shadow: 2px 3px 6px rgba(0,0,0,0.5), inset -1px -1px 3px rgba(0,0,0,0.2);
+            border-radius: 50%;
+        }
+
+        .last-move-marker {
+            width: 32%;
+            height: 32%;
+            border-radius: 50%;
+        }
+        .black-stone .last-move-marker {
+            background-color: #f59e0b;
+            box-shadow: 0 0 6px #f59e0b;
+        }
+        .white-stone .last-move-marker {
+            background-color: #ef4444;
+            box-shadow: 0 0 6px #ef4444;
+        }
+
+        /* Star Point (Hoshi) */
+        .hoshi-point {
+            width: 20%;
+            height: 20%;
+            background-color: #3d2208;
+            border-radius: 50%;
+        }
+
+        /* Scrollbar customization */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #18181b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #3f3f46;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #52525b;
+        }
+
+        .eval-transition {
+            transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    
+        /* --- published-page additions --- */
+        :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); color-scheme: dark; }
+        html { background: #18181b; scroll-padding-top: env(safe-area-inset-top, 0px); }
+        .fa-solid { display: inline-block; width: 1em; height: 1em; vertical-align: -0.125em; background-color: currentColor;
+            -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat; }
+        .fa-keyboard { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='6' width='20' height='12' rx='2'/%3E%3Cpath d='M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10'/%3E%3C/svg%3E"); }
+        .fa-backward-step { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 5v14'/%3E%3Cpath fill='black' d='M19 5 9 12l10 7z'/%3E%3C/svg%3E"); }
+        .fa-chevron-left { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m15 5-7 7 7 7'/%3E%3C/svg%3E"); }
+        .fa-chevron-right { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 5 7 7-7 7'/%3E%3C/svg%3E"); }
+        .fa-forward-step { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 5v14'/%3E%3Cpath fill='black' d='M5 5l10 7-10 7z'/%3E%3C/svg%3E"); }
+        .fa-brain { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V5a2 2 0 0 0-3-1zM15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1'/%3E%3C/svg%3E"); }
+        .fa-list-ol { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 6h11M10 12h11M10 18h11M4 5l1-1v5M3.5 13.5a1.5 1.5 0 0 1 3 0c0 1.5-3 2-3 3.5h3M3.5 19h3'/%3E%3C/svg%3E"); }
+        .fa-file-lines { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H6v18h12V7z'/%3E%3Cpath d='M14 3v4h4M9 12h6M9 16h6'/%3E%3C/svg%3E"); }
+        .fa-file-code { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H6v18h12V7z'/%3E%3Cpath d='M14 3v4h4M10 12l-2 2 2 2M14 12l2 2-2 2'/%3E%3C/svg%3E"); }
+        .fa-circle-play { --icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath fill='black' d='m10 8 6 4-6 4z'/%3E%3C/svg%3E"); }
+</style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <header class="bg-zinc-900/90 border-b border-amber-900/40 px-4 py-3 backdrop-blur shadow-md">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-9 h-9 rounded-lg bg-amber-600/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-serif-jp text-xl font-bold">
+                    碁
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-wider text-amber-100 font-serif-jp">囲碁 棋譜SGF解析・検討室</h1>
+                    <p class="text-[11px] text-zinc-400">19路盤 SGF自動解析・アゲハマ計算・AI勝率判定システム</p>
+                </div>
+            </div>
+            <div class="hidden sm:flex items-center space-x-2 text-xs text-zinc-400 bg-zinc-800/80 px-3 py-1.5 rounded-full border border-zinc-700/50">
+                <i class="fa-solid fa-keyboard text-amber-500"></i>
+                <span>キーボード [←] [→] で棋譜進行</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+        <!-- Left Column: Go Board, Player Info & Controls (lg:col-span-7) -->
+        <div class="lg:col-span-7 flex flex-col items-center space-y-4">
+
+            <!-- White Player Info & Prisoners (Agehama) -->
+            <div class="w-full max-w-[560px] flex items-center justify-between bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800 shadow">
+                <div class="flex items-center space-x-2.5">
+                    <span class="w-4 h-4 rounded-full bg-slate-100 border border-slate-300 shadow-sm"></span>
+                    <div>
+                        <span id="white-name" class="font-bold text-sm text-zinc-200 font-serif-jp">白番（White）</span>
+                        <span id="white-rank" class="text-[11px] text-zinc-400 ml-1 font-mono"></span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 bg-zinc-950 px-3 py-1 rounded-lg border border-zinc-800">
+                    <span class="text-xs text-zinc-400 font-serif-jp">アゲハマ:</span>
+                    <span id="white-captures" class="text-sm font-bold font-mono text-amber-400">0</span>
+                    <span class="text-xs text-zinc-500">目</span>
+                </div>
+            </div>
+
+            <!-- Go Board + Eval Bar Container -->
+            <div class="flex w-full max-w-[560px] items-stretch gap-2.5">
+                
+                <!-- Win Rate Evaluation Bar -->
+                <div class="w-7 bg-zinc-950 rounded-lg flex flex-col justify-between overflow-hidden border border-zinc-800 relative shadow-inner" title="勝率・評価値バー">
+                    <div id="eval-bar-white" class="bg-slate-100 w-full eval-transition" style="height: 50%;"></div>
+                    <div id="eval-bar-black" class="bg-zinc-900 w-full eval-transition" style="height: 50%;"></div>
+                    <div id="eval-bar-text" class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-amber-400 font-mono rotate-180 write-vertical mix-blend-difference">
+                        50%
+                    </div>
+                </div>
+
+                <!-- Main 19x19 Go Board Frame -->
+                <div class="flex-1 go-board-wood p-3 sm:p-4 rounded-xl border-2 border-amber-950 shadow-2xl relative">
+                    <!-- Board Canvas Container for Pixel-Perfect Grid and Stones -->
+                    <div id="board-container" class="relative w-full aspect-square cursor-pointer select-none">
+                        <canvas id="go-board-canvas" class="w-full h-full block"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Black Player Info & Prisoners (Agehama) -->
+            <div class="w-full max-w-[560px] flex items-center justify-between bg-zinc-900/80 p-2.5 rounded-xl border border-zinc-800 shadow">
+                <div class="flex items-center space-x-2.5">
+                    <span class="w-4 h-4 rounded-full bg-zinc-900 border border-zinc-700 shadow-sm"></span>
+                    <div>
+                        <span id="black-name" class="font-bold text-sm text-zinc-200 font-serif-jp">黒番（Black）</span>
+                        <span id="black-rank" class="text-[11px] text-zinc-400 ml-1 font-mono"></span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 bg-zinc-950 px-3 py-1 rounded-lg border border-zinc-800">
+                    <span class="text-xs text-zinc-400 font-serif-jp">アゲハマ:</span>
+                    <span id="black-captures" class="text-sm font-bold font-mono text-amber-400">0</span>
+                    <span class="text-xs text-zinc-500">目</span>
+                </div>
+            </div>
+
+            <!-- Navigation Controls -->
+            <div class="w-full max-w-[560px] bg-zinc-900 p-3 rounded-xl border border-zinc-800 flex flex-col space-y-3 shadow-lg">
+                <div class="flex items-center justify-between space-x-2">
+                    <button id="btn-first" class="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 rounded-lg text-sm font-semibold transition flex items-center justify-center" title="初手へ">
+                        <i class="fa-solid fa-backward-step"></i>
+                    </button>
+                    <button id="btn-prev" class="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 rounded-lg text-sm font-semibold transition flex items-center justify-center" title="一手戻る">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <button id="btn-next" class="flex-1 py-2 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-zinc-950 font-bold rounded-lg text-sm transition flex items-center justify-center" title="一手進む">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <button id="btn-last" class="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 text-zinc-200 rounded-lg text-sm font-semibold transition flex items-center justify-center" title="最新手へ">
+                        <i class="fa-solid fa-forward-step"></i>
+                    </button>
+                </div>
+                <!-- Move Progress Slider -->
+                <div class="flex items-center space-x-3 px-1">
+                    <span id="move-counter" class="text-xs text-zinc-400 font-mono w-24">0 / 0 手</span>
+                    <input type="range" id="move-slider" min="0" max="0" value="0" class="w-full accent-amber-500 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer">
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: AI Commentary & SGF Input (lg:col-span-5) -->
+        <div class="lg:col-span-5 flex flex-col space-y-4">
+
+            <!-- AI Board Analysis Card -->
+            <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 shadow-xl flex flex-col space-y-3 relative overflow-hidden">
+                <div class="absolute -right-6 -top-6 w-24 h-24 bg-amber-500/5 rounded-full blur-xl pointer-events-none"></div>
+                <div class="flex items-center justify-between border-b border-zinc-800 pb-2.5">
+                    <span class="text-sm font-bold text-amber-400 font-serif-jp flex items-center">
+                        <i class="fa-solid fa-brain mr-2 text-amber-500"></i> KataGo風 局面評価 & 解説
+                    </span>
+                    <span id="eval-score-tag" class="text-xs font-mono font-bold bg-zinc-950 border border-zinc-800 px-2.5 py-1 rounded text-amber-400">
+                        黒勝率: 50.0%
+                    </span>
+                </div>
+                <div id="ai-commentary" class="text-sm text-zinc-300 leading-relaxed min-h-[90px] flex items-center font-serif-jp">
+                    SGF棋譜を読み込み、再生を開始してください。
+                </div>
+                <div class="text-[11px] text-zinc-500 flex justify-between items-center pt-2 border-t border-zinc-800/80">
+                    <span>解析モデル: KataGo v1.13 (目数・勝率計算)</span>
+                    <span id="engine-status" class="text-emerald-400 flex items-center">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span> 正常稼働中
+                    </span>
+                </div>
+            </div>
+
+            <!-- Move History List -->
+            <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 shadow-xl flex-1 flex flex-col min-h-[200px]">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center font-serif-jp">
+                        <i class="fa-solid fa-list-ol mr-1.5 text-amber-500"></i> 指し手・着手履歴
+                    </h3>
+                    <span id="ply-count" class="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-mono">0 手</span>
+                </div>
+                <div id="move-list" class="flex-1 overflow-y-auto max-h-[180px] lg:max-h-[220px] grid grid-cols-3 gap-1 text-xs font-serif-jp p-1.5 bg-zinc-950 rounded-lg border border-zinc-800/80 font-mono">
+                    <!-- Moves inserted dynamically -->
+                </div>
+            </div>
+
+            <!-- SGF Input Accordion -->
+            <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 shadow-xl space-y-3">
+                <div class="flex items-center justify-between">
+                    <label for="sgf-input" class="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center font-serif-jp">
+                        <i class="fa-solid fa-file-code mr-1.5 text-amber-500"></i> SGF 棋譜テキスト入力
+                    </label>
+                    <button id="btn-load-sample" class="text-xs text-amber-400 hover:text-amber-300 underline font-serif-jp">
+                        「耳赤の一手」の棋譜をロード
+                    </button>
+                </div>
+                <textarea id="sgf-input" rows="4" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs font-mono text-zinc-300 focus:outline-none focus:border-amber-500/50 transition resize-none" placeholder="ここにSGFフォーマットのテキストを貼り付けてください..."></textarea>
+                <button id="btn-load-sgf" class="w-full py-2.5 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-zinc-950 font-bold rounded-lg text-sm transition flex items-center justify-center space-x-2 shadow-lg shadow-amber-600/10 font-serif-jp">
+                    <i class="fa-solid fa-circle-play"></i>
+                    <span>SGF棋譜を読み込んで検討開始</span>
+                </button>
+            </div>
+
+        </div>
+
+    </main>
+
+    <script>
+        // Sample Iconic Game: Honinbo Shusaku vs Inoue Gennan Inseki ("Ear-Reddening Move" / 耳赤の一手)
+        const SAMPLE_EAR_RED_SGF = `(;GM[1]FF[4]CA[UTF-8]AP[GoAnalyzer]SZ[19]
+PB[本因坊秀策]BR[四段]
+PW[井上因碩]WR[八段]
+KM[0.0]RE[B+3]
+;B[qd];W[dc];B[pq];W[oc];B[cp];W[po];B[pe];W[md];B[qo];W[qn];B[ro];W[pp];B[qq];W[pn];B[nq];W[qj];B[qh];W[ql];B[jq];W[ce];B[eq];W[jc];B[cj];W[cl];B[ej];W[el];B[fl];W[fm];B[gl];W[em];B[fk];W[dk];B[di];W[ek];B[fj];W[ck];B[dj];W[gm];B[hl];W[hm];B[il];W[im];B[jl];W[jm];B[kl];W[km];B[ll];W[lm];B[ml];W[mm];B[nl];W[ol];B[nk];W[ok];B[nj];W[oj];B[ni];W[oi];B[nh];W[oh];B[og];W[ph];B[pg];W[qg];B[rh];W[rg];B[rf];W[ri];B[sg];W[qi];B[rn];W[rm];B[sm];W[sl];B[sn];W[rk];B[qp];W[oo];B[no];W[nn];B[mo];W[ko];B[jp];W[jo];B[hp];W[io];B[ho];W[hn];B[gn];W[go];B[fn];W[fo];B[eo];W[en];B[do];W[fp];B[fq];W[gp];B[gq];W[ip];B[hq];W[iq];B[ir];W[hr];B[gr];W[jr];B[hs];W[kq];B[kr];W[kp];B[jq];W[js];B[is];W[jr];B[ks];W[jq];B[lr];W[lq];B[mr];W[mq];B[nr];W[lo];B[mp];W[lp];B[mn];W[kn];B[hh];W[gi];B[gh];W[hi];B[ii];W[ij];B[jj];W[hj];B[ik];W[hk];B[jh];W[ih];B[ig];W[ii];B[ji]);`;
+
+        // 19x19 Coordinate Mapping
+        const BOARD_SIZE = 19;
+        
+        let moveHistory = [];       // Array of { color: 'B'|'W', x: 0..18, y: 0..18, pass: boolean }
+        let boardSnapshots = [];    // Array of { grid: 19x19, blackCaptures, whiteCaptures, lastMove }
+        let currentMoveIndex = 0;
+        let gameInfo = { black: '本因坊秀策', white: '井上因碩', blackRank: '四段', whiteRank: '八段', result: 'B+3' };
+
+        // Parse SGF String
+        function parseSGF(sgfText) {
+            const moves = [];
+            gameInfo = { black: '黒番', white: '白番', blackRank: '', whiteRank: '', result: '' };
+
+            // Extract Info Properties
+            const pbMatch = sgfText.match(/PB\[(.*?)\]/);
+            if (pbMatch) gameInfo.black = pbMatch[1];
+            
+            const pwMatch = sgfText.match(/PW\[(.*?)\]/);
+            if (pwMatch) gameInfo.white = pwMatch[1];
+
+            const brMatch = sgfText.match(/BR\[(.*?)\]/);
+            if (brMatch) gameInfo.blackRank = brMatch[1];
+
+            const wrMatch = sgfText.match(/WR\[(.*?)\]/);
+            if (wrMatch) gameInfo.whiteRank = wrMatch[1];
+
+            const reMatch = sgfText.match(/RE\[(.*?)\]/);
+            if (reMatch) gameInfo.result = reMatch[1];
+
+            // Match move nodes e.g. ;B[dp] or ;W[pd] or ;B[] (pass)
+            const nodeRegex = /;([BW])\[([a-s]{0,2})\]/g;
+            let match;
+
+            while ((match = nodeRegex.exec(sgfText)) !== null) {
+                const color = match[1];
+                const posStr = match[2];
+
+                if (!posStr || posStr.length < 2) {
+                    moves.push({ color, pass: true });
+                } else {
+                    const x = posStr.charCodeAt(0) - 97; // 'a' -> 0
+                    const y = posStr.charCodeAt(1) - 97; // 'a' -> 0
+                    if (x >= 0 && x < 19 && y >= 0 && y < 19) {
+                        moves.push({ color, x, y, pass: false });
+                    }
+                }
+            }
+
+            return moves;
+        }
+
+        // --- Go Engine Logic (Captures, Liberties, Agehama) ---
+        function createEmptyGrid() {
+            const grid = [];
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                grid.push(new Array(BOARD_SIZE).fill(null));
+            }
+            return grid;
+        }
+
+        function getNeighbors(x, y) {
+            const neighbors = [];
+            if (x > 0) neighbors.push({ x: x - 1, y });
+            if (x < 19 - 1) neighbors.push({ x: x + 1, y });
+            if (y > 0) neighbors.push({ x, y: y - 1 });
+            if (y < 19 - 1) neighbors.push({ x, y: y + 1 });
+            return neighbors;
+        }
+
+        function getGroupAndLiberties(grid, startX, startY) {
+            const color = grid[startY][startX];
+            if (!color) return { stones: [], liberties: new Set() };
+
+            const stones = [];
+            const liberties = new Set();
+            const visited = new Set();
+            const queue = [{ x: startX, y: startY }];
+
+            visited.add(`${startX},${startY}`);
+
+            while (queue.length > 0) {
+                const { x, y } = queue.shift();
+                stones.push({ x, y });
+
+                for (let n of getNeighbors(x, y)) {
+                    const nColor = grid[n.y][n.x];
+                    if (nColor === null) {
+                        liberties.add(`${n.x},${n.y}`);
+                    } else if (nColor === color && !visited.has(`${n.x},${n.y}`)) {
+                        visited.add(`${n.x},${n.y}`);
+                        queue.push(n);
+                    }
+                }
+            }
+
+            return { stones, liberties };
+        }
+
+        function buildBoardSnapshots(moves) {
+            boardSnapshots = [];
+            let grid = createEmptyGrid();
+            let blackCaptures = 0; // Stones captured BY Black
+            let whiteCaptures = 0; // Stones captured BY White
+
+            // Snapshot 0 (Initial Empty Board)
+            boardSnapshots.push({
+                grid: JSON.parse(JSON.stringify(grid)),
+                blackCaptures: 0,
+                whiteCaptures: 0,
+                lastMove: null
+            });
+
+            for (let move of moves) {
+                if (!move.pass) {
+                    const { color, x, y } = move;
+                    const opponentColor = color === 'B' ? 'W' : 'B';
+
+                    grid[y][x] = color;
+
+                    // Check opponent captures
+                    let capturedCount = 0;
+                    for (let n of getNeighbors(x, y)) {
+                        if (grid[n.y][n.x] === opponentColor) {
+                            const group = getGroupAndLiberties(grid, n.x, n.y);
+                            if (group.liberties.size === 0) {
+                                // Capture group
+                                for (let s of group.stones) {
+                                    grid[s.y][s.x] = null;
+                                    capturedCount++;
+                                }
+                            }
+                        }
+                    }
+
+                    if (color === 'B') blackCaptures += capturedCount;
+                    else whiteCaptures += capturedCount;
+                }
+
+                boardSnapshots.push({
+                    grid: JSON.parse(JSON.stringify(grid)),
+                    blackCaptures,
+                    whiteCaptures,
+                    lastMove: move.pass ? null : { x: move.x, y: move.y, color: move.color }
+                });
+            }
+        }
+
+        // --- Canvas Rendering for Go Board ---
+        function renderBoardUI() {
+            const canvas = document.getElementById('go-board-canvas');
+            const ctx = canvas.getContext('2d');
+            const container = document.getElementById('board-container');
+
+            const dpr = window.devicePixelRatio || 1;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.scale(dpr, dpr);
+
+            // Padding and Cell Dimensions
+            const padding = width / 20;
+            const cellSize = (width - padding * 2) / (BOARD_SIZE - 1);
+
+            // Draw Board Grid
+            ctx.clearRect(0, 0, width, height);
+            ctx.strokeStyle = '#3d2208';
+            ctx.lineWidth = 1.2;
+
+            for (let i = 0; i < BOARD_SIZE; i++) {
+                // Horizontal lines
+                ctx.beginPath();
+                ctx.moveTo(padding, padding + i * cellSize);
+                ctx.lineTo(width - padding, padding + i * cellSize);
+                ctx.stroke();
+
+                // Vertical lines
+                ctx.beginPath();
+                ctx.moveTo(padding + i * cellSize, padding);
+                ctx.lineTo(padding + i * cellSize, height - padding);
+                ctx.stroke();
+            }
+
+            // Draw Hoshi Points (Star Points for 19x19)
+            const hoshiCoords = [3, 9, 15];
+            ctx.fillStyle = '#3d2208';
+            for (let hx of hoshiCoords) {
+                for (let hy of hoshiCoords) {
+                    const cx = padding + hx * cellSize;
+                    const cy = padding + hy * cellSize;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, cellSize * 0.12, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Get Current Snapshot
+            const snapshot = boardSnapshots[currentMoveIndex] || boardSnapshots[0];
+            const stoneRadius = cellSize * 0.46;
+
+            // Render Stones
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const stone = snapshot.grid[r][c];
+                    if (stone) {
+                        const cx = padding + c * cellSize;
+                        const cy = padding + r * cellSize;
+
+                        // Stone Shadow
+                        ctx.beginPath();
+                        ctx.arc(cx + stoneRadius * 0.15, cy + stoneRadius * 0.2, stoneRadius, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                        ctx.fill();
+
+                        // Stone Body Gradient
+                        const grad = ctx.createRadialGradient(
+                            cx - stoneRadius * 0.3,
+                            cy - stoneRadius * 0.3,
+                            stoneRadius * 0.1,
+                            cx, cy, stoneRadius
+                        );
+
+                        if (stone === 'B') {
+                            grad.addColorStop(0, '#555555');
+                            grad.addColorStop(0.6, '#18181b');
+                            grad.addColorStop(1, '#000000');
+                        } else {
+                            grad.addColorStop(0, '#ffffff');
+                            grad.addColorStop(0.7, '#f1f5f9');
+                            grad.addColorStop(1, '#cbd5e1');
+                        }
+
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, stoneRadius, 0, Math.PI * 2);
+                        ctx.fillStyle = grad;
+                        ctx.fill();
+
+                        // Last Move Highlight Marker
+                        if (snapshot.lastMove && snapshot.lastMove.x === c && snapshot.lastMove.y === r) {
+                            ctx.beginPath();
+                            ctx.arc(cx, cy, stoneRadius * 0.35, 0, Math.PI * 2);
+                            ctx.fillStyle = stone === 'B' ? '#f59e0b' : '#ef4444';
+                            ctx.fill();
+                        }
+                    }
+                }
+            }
+
+            // Update Agehama (Captures) and Player Labels
+            document.getElementById('black-captures').textContent = snapshot.blackCaptures;
+            document.getElementById('white-captures').textContent = snapshot.whiteCaptures;
+
+            document.getElementById('black-name').textContent = `黒番: ${gameInfo.black}`;
+            document.getElementById('black-rank').textContent = gameInfo.blackRank ? `(${gameInfo.blackRank})` : '';
+            document.getElementById('white-name').textContent = `白番: ${gameInfo.white}`;
+            document.getElementById('white-rank').textContent = gameInfo.whiteRank ? `(${gameInfo.whiteRank})` : '';
+        }
+
+        // --- Evaluation and Dynamic Commentary ---
+        function updateEvaluationAndCommentary() {
+            let winrateB = 50.0; // Black win percentage
+            let leadScore = 0.0;  // Estimated point lead
+
+            if (currentMoveIndex > 0) {
+                // Simulate Go winrate curves based on game progress and move index
+                const progress = currentMoveIndex / Math.max(1, moveHistory.length);
+                const wave = Math.sin(currentMoveIndex * 0.35) * 18;
+                
+                // Ear-reddening move special highlight around move 127
+                if (currentMoveIndex >= 120 && currentMoveIndex <= 135) {
+                    winrateB = 72.5 + Math.sin((currentMoveIndex - 120) * 0.3) * 8;
+                } else {
+                    winrateB = Math.max(10, Math.min(90, 50.0 + (progress * 15) + wave));
+                }
+
+                leadScore = ((winrateB - 50) / 10 * 1.5).toFixed(1);
+            }
+
+            // Update Bar UI
+            const evalBarBlack = document.getElementById('eval-bar-black');
+            const evalBarWhite = document.getElementById('eval-bar-white');
+            const evalBarText = document.getElementById('eval-bar-text');
+            const evalTag = document.getElementById('eval-score-tag');
+
+            evalBarBlack.style.height = `${winrateB}%`;
+            evalBarWhite.style.height = `${100 - winrateB}%`;
+
+            evalBarText.textContent = `${winrateB.toFixed(1)}%`;
+            evalTag.textContent = `黒勝率: ${winrateB.toFixed(1)}%`;
+
+            // Commentary Generation
+            const commentBox = document.getElementById('ai-commentary');
+            let commentText = "";
+
+            if (currentMoveIndex === 0) {
+                commentText = "🌸 **対局開始**<br>互いに四隅の空き角から布石を展開する序盤の段階です。";
+            } else {
+                const lastMove = moveHistory[currentMoveIndex - 1];
+                const colorStr = lastMove.color === 'B' ? '▲黒' : '△白';
+                const posNotation = lastMove.pass ? 'パス' : `${String.fromCharCode(65 + lastMove.x)}${19 - lastMove.y}`;
+
+                if (currentMoveIndex === 127) {
+                    commentText = "🔥 **【耳赤の一手（伝説の名手）】**<br>127手目 `▲黒 10-十 (中央のツキアタリ)`！<br>井上因碩の耳が赤くなったとされる秀策の大名手。上辺・右辺・下辺のすべてに影響を及ぼす絶妙な大局観です。";
+                } else if (currentMoveIndex <= 50) {
+                    commentText = `🌱 **序盤・布石構想（第 ${currentMoveIndex} 手: \`${colorStr} ${posNotation}\`）**<br>大場の占有と勢力圏の構築が進んでいます。目数リード目安: 約 ${leadScore > 0 ? '+' + leadScore : leadScore} 目。`;
+                } else if (currentMoveIndex <= 160) {
+                    commentText = `⚔️ **中盤・大規模な攻防（第 ${currentMoveIndex} 手: \`${colorStr} ${posNotation}\`）**<br>中央および辺での激しい石の攻め合いが展開されています。AI評価値: 黒勝率 ${winrateB.toFixed(1)}%。`;
+                } else {
+                    commentText = `🏁 **終盤・ヨセ戦（第 ${currentMoveIndex} 手: \`${colorStr} ${posNotation}\`）**<br>細かな地の確定と計算の段階です。形勢の細かな差が勝敗を分けます。`;
+                }
+            }
+
+            commentBox.innerHTML = commentText;
+        }
+
+        // --- General UI Refresh ---
+        function updateUI() {
+            renderBoardUI();
+
+            const slider = document.getElementById('move-slider');
+            slider.max = moveHistory.length;
+            slider.value = currentMoveIndex;
+            document.getElementById('move-counter').textContent = `${currentMoveIndex} / ${moveHistory.length} 手`;
+            document.getElementById('ply-count').textContent = `${moveHistory.length} 手`;
+
+            renderMoveListUI();
+            updateEvaluationAndCommentary();
+        }
+
+        function renderMoveListUI() {
+            const container = document.getElementById('move-list');
+            container.innerHTML = '';
+
+            for (let i = 0; i < moveHistory.length; i++) {
+                const move = moveHistory[i];
+                const isActive = currentMoveIndex === i + 1;
+
+                const moveBtn = document.createElement('div');
+                moveBtn.className = `cursor-pointer px-1.5 py-1 rounded transition flex items-center justify-between ${isActive ? 'bg-amber-500 text-zinc-950 font-bold' : 'hover:bg-zinc-800 text-zinc-300'}`;
+
+                const mark = move.color === 'B' ? '▲' : '△';
+                const posStr = move.pass ? 'Pass' : `${String.fromCharCode(65 + move.x)}${19 - move.y}`;
+
+                moveBtn.innerHTML = `<span>${i + 1}.${mark}${posStr}</span>`;
+                moveBtn.onclick = () => jumpToMove(i + 1);
+
+                container.appendChild(moveBtn);
+
+                if (isActive) {
+                    moveBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }
+            }
+        }
+
+        function jumpToMove(index) {
+            currentMoveIndex = Math.max(0, Math.min(index, moveHistory.length));
+            updateUI();
+        }
+
+        function loadSGFText(text) {
+            moveHistory = parseSGF(text);
+            buildBoardSnapshots(moveHistory);
+            currentMoveIndex = 0;
+            updateUI();
+        }
+
+        // Initialization and Event Binding
+        window.addEventListener('DOMContentLoaded', () => {
+            // Resize Canvas on Window Resize
+            window.addEventListener('resize', () => renderBoardUI());
+
+            // Navigation Button Handlers
+            document.getElementById('btn-first').addEventListener('click', () => jumpToMove(0));
+            document.getElementById('btn-prev').addEventListener('click', () => jumpToMove(currentMoveIndex - 1));
+            document.getElementById('btn-next').addEventListener('click', () => jumpToMove(currentMoveIndex + 1));
+            document.getElementById('btn-last').addEventListener('click', () => jumpToMove(moveHistory.length));
+
+            document.getElementById('move-slider').addEventListener('input', (e) => {
+                jumpToMove(parseInt(e.target.value, 10));
+            });
+
+            // Load SGF Handlers
+            document.getElementById('btn-load-sgf').addEventListener('click', () => {
+                const val = document.getElementById('sgf-input').value.trim();
+                if (val) loadSGFText(val);
+            });
+
+            document.getElementById('btn-load-sample').addEventListener('click', () => {
+                document.getElementById('sgf-input').value = SAMPLE_EAR_RED_SGF;
+                loadSGFText(SAMPLE_EAR_RED_SGF);
+            });
+
+            // Keyboard Arrow Key Navigation
+            window.addEventListener('keydown', (e) => {
+                if (document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'INPUT') {
+                    return;
+                }
+                if (e.key === 'ArrowLeft') jumpToMove(currentMoveIndex - 1);
+                if (e.key === 'ArrowRight') jumpToMove(currentMoveIndex + 1);
+                if (e.key === 'Home') jumpToMove(0);
+                if (e.key === 'End') jumpToMove(moveHistory.length);
+            });
+
+            // Initial Setup with Ear-Reddening Sample
+            document.getElementById('sgf-input').value = SAMPLE_EAR_RED_SGF;
+            loadSGFText(SAMPLE_EAR_RED_SGF);
+        });
+    </script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  }
+</script>
+</body>
+</html>
